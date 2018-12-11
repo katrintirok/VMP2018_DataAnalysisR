@@ -1,0 +1,331 @@
+---
+title: "Estimating Chi - examples"
+output:
+  html_notebook: default
+  #pdf_document: default
+---
+
+This notebook imports the temperature spectral data saved from matlab (from structure `diss.sclar_spectra.scalar_spec`), corrects for the frequency response of the sensor using Vachon and Lueck correction (used by Rockland in odas) and fits the model stated in Bluteau to the temperature spectrum to estimate $\chi$.
+
+Data from profile_nr 32 was used for testing, dive depth was 414 m. 146 spectra were calculated.
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+library(R.matlab)  # for reading mat files into R
+library(tidyverse)
+library(ggplot2)
+library(stats4)  # for mle 
+library(scales) # for scientific format of numbers
+```
+
+```{r}
+# read in data, mat structures are read as lists in R
+spec <- readMat('../data/gradT_spectra_HPfilt_fftl2.mat')
+diss <- readMat('../data/Diss_032_fft2.mat')
+diss_fieldnames <- unlist(readMat('../data/diss_fieldnames_fft2.mat'))
+print(diss_fieldnames)
+```
+
+```{r}
+# extract spectrum energy values from spec list
+gradT1 <- spec[[1]][[1]][,1,]
+gradT2 <- spec[[1]][[1]][,2,]
+# wavenumber 2D matrix with each column for one depth segment from spec list
+waven <- spec[[1]][[3]]
+# frequency matrix from spec list
+freq <- spec[[1]][[2]]
+# additional variables
+mean_speed <- diss[[1]][[16]]
+pressure <- diss[[1]][[18]]
+eps <- diss[[1]][[1]]
+# delete unused variables
+rm(diss, spec, diss_fieldnames)
+print('structure of gradT1:')
+str(gradT1)
+```
+
+
+### Correcting for frequency response
+
+```{r}
+# correction as in odas library
+# time constant for double-pole response:
+F_0 <- 25*sqrt(mean_speed)
+tau_therm <- 2*pi*F_0 / sqrt(sqrt(2) - 1)   
+tau_therm <- 1 / tau_therm
+# correction:
+# create a NA matrix for gradT1 and T2 of correct size and then fill with corrected values
+gradT1_c <- matrix(data=NA, nrow=length(freq[,1]), ncol=length(freq[1,]))
+gradT2_c <- matrix(data=NA, nrow=length(freq[,1]), ncol=length(freq[1,]))
+for(index in 1:length(freq[1,])){
+  gradT1_c[,index] <- gradT1[,index] * (1 + (2*pi*tau_therm[index]*freq[,index])^2)^2
+  gradT2_c[,index] <- gradT2[,index] * (1 + (2*pi*tau_therm[index]*freq[,index])^2)^2
+} # end for loop
+```
+
+#### Plot corrected sample spectra
+
+```{r echo=FALSE, fig.width = 6, fig.height = 3}
+specnr_sub <- c(16,30,50,70,100,130)
+# make dataframe, combine gradT1 and T2 in one dataframe
+gradT1_df <- data.frame(freq=freq[,1], gradT1_c) %>%
+  gather(key = specnr, -freq, value = T1)
+gradT2_df <- data.frame(freq=freq[,1], gradT2_c) %>%
+  gather(key = specnr, -freq, value = T2)
+gradT_df <- merge(gradT1_df, gradT2_df, by = c('freq', 'specnr')) %>%
+  gather(key = sensor, -freq, -specnr, value = gradT_c)
+gradT_df$specnr <- as.numeric(str_split(gradT_df$specnr, pattern='X', simplify = T)[,2])
+# filter for sample spectra and discard first value (freq = 0)
+gradT_pl <- filter(gradT_df, specnr %in% specnr_sub, freq != 0)
+# plot sample spectra
+ggplot(data =  gradT_pl) +
+  geom_line(aes(x = freq, y = gradT_c, col = as.factor(sensor))) +
+  scale_colour_discrete(name = 'sensor') +
+  scale_x_log10() +
+  scale_y_log10() +
+  theme_bw() +
+  facet_wrap(~specnr, ncol = 3) +
+  labs(title = 'nrs represent nr of spectrum')
+```
+
+
+#### Fit model to spectra with $\chi$ as parameter estimated with MLE (maximum likelihood estimation)
+
+model to fit:
+$$\Psi_{\delta T/\delta x_i}(k) = C_T \chi \epsilon^{-1/3} k^{1/3}$$
+
+  with:
+  
+  - $\Psi_{\delta T/\delta x_i}$ = corrected energy spectrum (`gradT_c`),
+  - $C_T$ = Obukhov-Corrsin universal constant with values between 0.3 and 0.5, 0.4 recommended,
+  - $\epsilon$ = dissipation energy estimated from shear probe signal (`eps`), 
+  - $k$ = wavenumber ($k$ is here in rad/m, a conversion coefficient to convert to cpm should be added to the model?) (`waven`)
+  
+
+##### Convert measured spectra to wavenumber spectra by multiplying with mean_speed
+
+```{r}
+# make empty (NA) matrix of correct size
+P_gradT1_c <- matrix(NA, nrow = length(gradT1_c[,1]), ncol=length(gradT1_c[1,]))
+P_gradT2_c <- matrix(NA, nrow = length(gradT2_c[,1]), ncol=length(gradT2_c[1,]))
+# fill matrix with converted values
+for(index in 1:length(gradT1_c[,1])){
+  P_gradT1_c[index,] <- gradT1_c[index,] * mean_speed
+  P_gradT2_c[index,] <- gradT2_c[index,] * mean_speed
+}
+```
+
+##### Find upper limit for $k$ for model fit using the criterium correction $H(k) \leq 3$ and $k \leq 0.1 \eta ^{-1}$
+```{r}
+# initialise K_max
+K_max <- c()
+# loop through all spectra in profile 32
+for(segment in 1:146){
+  # calculate correction factor Hf
+  f <- freq[,segment]
+  tau0 <- 4.1 * 10^-3
+  speed0 <- 1
+  tau <- tau0 * (mean_speed[segment,]/speed0)^(-0.5)
+  Hf <- (1 + (2 * pi * tau *f)^2)^(2)
+  # find range where Hf does not exceed 3
+  ind <- length(Hf[Hf <= 3])
+  # extract K for range where Hf <= 3
+  K_max_seg = waven[ind,segment]
+  
+  # calculate eta (Kolmogorov length scale) from epsilon for check of second criterium for upper k
+  eta <- (((10^-6)^3)/mean(eps[,segment]))^0.25 # Kolmogorov length scale
+  
+  # final upper limit of k
+  K_max[segment] <- min(0.1/eta,K_max_seg)
+}
+```
+
+##### Define x and y for model, only use spectrum for wavenumbers < K_max
+```{r}
+# initialise x and y as empty lists
+x <- list()
+y1 <- list()
+y2 <- list()
+# loop through all spectra for profile 32
+for(segment in 1:146){
+  K_min <- 0 # K_min needs to be checked after fitting, default value = 0
+  # set lower k limit index
+  min_ind <- max(length(waven[waven[,segment]<=K_min, segment]),2)
+  # set upper k limit index
+  max_ind <- length(waven[waven[,segment]<=K_max[segment],segment]) 
+  # define y, y values are corrected wavenumber temp-gradient spectrum --> P_gradT1_c for chosen k range
+  y1_seg <- P_gradT1_c[min_ind:max_ind,segment]   
+  y2_seg <- P_gradT2_c[min_ind:max_ind,segment]
+  # define x, x values are k (wavenumbers) for chosen range
+  x_seg <- waven[min_ind:max_ind,segment]
+  # append x and y lists in each step
+  y1 <- c(y1,list(y1_seg))
+  y2 <- c(y2,list(y2_seg))
+  x <- c(x,list(x_seg))
+} # end for loop
+# combine y1 and y2 in one list
+y <- list(y1, y2)
+```
+
+##### maximum $k$ and number of spectral points included in estimating $\chi$ for sample spectra:
+
+  - spectrum `r specnr_sub[1]`: $k_{max}$ = `r signif(K_max[specnr_sub[1]],3)`, n = `r length(x[[specnr_sub[1]]])`
+  - spectrum `r specnr_sub[2]`: $k_{max}$ = `r signif(K_max[specnr_sub[2]],3)`, n = `r length(x[[specnr_sub[2]]])`
+  - spectrum `r specnr_sub[3]`: $k_{max}$ = `r signif(K_max[specnr_sub[3]],3)`, n = `r length(x[[specnr_sub[3]]])`
+  - spectrum `r specnr_sub[4]`: $k_{max}$ = `r signif(K_max[specnr_sub[4]],3)`, n = `r length(x[[specnr_sub[4]]])`
+  - spectrum `r specnr_sub[5]`: $k_{max}$ = `r signif(K_max[specnr_sub[5]],3)`, n = `r length(x[[specnr_sub[5]]])`
+
+##### definition of maximum likelihood function
+```{r}
+# define C_T
+C_T <- 0.4
+# initialise output fit and chi
+fit <- list()
+chi <- c()
+# loop through both temp sensors
+for(sensor in 1:2){
+  fit_sens <- list()
+  chi_sens <- c()
+  # loop through each spectrum in profile 32
+  for(segment in 1:146){
+    xs <- x[[segment]]
+    ys <- y[[sensor]][[segment]]
+    #likelihood function definition
+    LL <- function(chi) {
+      # Find residuals
+      R = ys - C_T * chi * mean(eps[,segment])^(-1/3) * xs^(1/3)
+      # Calculate the likelihood for the residuals
+      R = suppressWarnings(dnorm(R, log = TRUE))
+      # Sum the log likelihoods for all of the data points
+      -sum(R)
+    } # end of LL function
+  
+    #model fit
+    fit_seg <- suppressWarnings(mle(LL, start = list( chi=10^(-7))
+                              ,nobs = length(ys),  method='L-BFGS-B'))
+    fit_sens <- c(fit_sens, list(fit_seg))
+    chi_sens <- c(chi_sens, fit_seg@coef[[1]])
+  } # end for loop through spectra
+  fit <- c(fit, list(fit_sens))
+  chi <- list(chi, chi_sens)
+} # end for loop through sensors
+```
+
+##### Estimated $\chi$ for sample spectra
+
+```{r, echo = FALSE}
+for(spec in specnr_sub){
+  print(paste(
+    'spectrum ',
+    spec,
+    ': estimated Chi = ',
+    scientific(fit[[1]][[spec]]@coef,3), 
+    ', Eps = ',
+    scientific(mean(eps[,spec]),3),
+    ', logLik = ',
+    signif(logLik(fit[[1]][[spec]]),3),
+    ', AIC = ',
+    signif(AIC(fit[[1]][[spec]]),3),
+    sep = ''))
+}
+```
+
+##### calculate model with fitted $\chi$ for plotting
+```{r}
+spec_model <- list()
+for(sensor in 1:2){
+  spec_model_sens <- list()
+  for(segment in 1:146){
+    spec_model_seg <-  C_T * fit[[sensor]][[segment]]@coef[1] * mean(eps[,segment])^(-1/3) * x[[segment]]^(1/3)
+    spec_model_sens <- c(spec_model_sens, list(spec_model_seg))
+  }#end for loop through spectra
+  spec_model <- c(spec_model, list(spec_model_sens))
+}#end for loop through sensors
+```
+
+##### plot data and model for sample spectra
+```{r}
+pl_model <- data.frame()
+for(segment in specnr_sub){
+  k_model_s <- x[[segment]]
+  spec_model1_s <- spec_model[[1]][[segment]]
+  spec_model2_s <- spec_model[[2]][[segment]]
+  pl_model <- pl_model %>%
+      rbind(data.frame(k_model = k_model_s, T1 = spec_model1_s, T2 = spec_model2_s, specnr = as.factor(segment)) %>%
+    gather(key = sensor, -k_model, -specnr, value = spec_model))
+} #end for loop through spectra
+pl_data <- gradT_df %>%
+  filter(specnr %in% specnr_sub, freq != 0) %>%
+  mutate(specnr = as.factor(specnr))
+ggplot() + 
+  geom_point(data=pl_data, aes(x=freq, y = gradT_c, col = sensor), alpha = 0.3) + 
+  geom_line(data=pl_model, aes(x=k_model, y=spec_model, col = sensor)) +
+  scale_y_continuous(trans='log10', limits=c(10^-9,10^-2)) +
+  scale_x_continuous(trans='log10')  + 
+  labs(x = 'freq', y = 'spectra energy') +
+  facet_wrap(~specnr, ncol = 3) +
+  theme_bw()
+```
+
+
+##### check for lower $k$ condition using MAD (mean absolute deviation) between observed and modelled spectra
+```{r}
+# only checking T1 for now
+MAD <- list()
+crit <- list()
+spec_good <- c()
+  for(segment in 1:146){
+    phi <- y[[1]][[segment]]   # corrected wavenumber temp-gradient = measured spectrum
+    psi <- spec_model[[1]][[segment]]   # modelled spectrum
+    steps <- 6  # 0.5-0.7 of a decade long?
+    nr_steps <- floor(length(phi)/steps)
+    modulo <- length(phi) %% steps
+    if(modulo >= 4){
+      nr_steps <- nr_steps + 1 
+    }
+
+    # calculate MAD for steps of 6 values for the spectrum
+    MAD_seg <- c()
+    crit_seg <- c()
+    for(i in 1:nr_steps){
+      n_st <- (i-1) * steps + 1
+      if(i == nr_steps){
+        if(modulo >= 4){
+          n_en <- n_st + modulo - 1
+        }else{
+          n_en <- n_st + steps - 1 + modulo
+        }
+      }else{
+        n_en <- n_st + steps - 1
+      }
+      phi_n = phi[n_st:n_en]
+      psi_n = psi[n_st:n_en]
+      MAD_seg[i] <-  1/(length(phi_n)) * sum(abs(phi_n/psi_n - mean(phi_n/psi_n)))
+    
+      # check whether MAD fits criteria, crit = 0 (bad), 1 (good)
+      dof <- length(phi_n) - 1   # degrees of freedom
+      crit_seg[i] <- ifelse(MAD_seg[i] < 2 * (2/dof)^0.5, 1, 0)
+    
+    } # end for loop
+    MAD <- c(MAD, list(MAD_seg))
+    crit <- c(crit, list(crit_seg))
+    spec_good <- c(spec_good, ifelse(sum(crit_seg)==length(crit_seg),1,0))
+  }
+  #If all subsets of the spectrum yielded a MAD>2(2/d)^1/2 (d = degrees of freedom   --> n-1 ?) (Ruddick et al. 2000), then the spectrum is completely discarded. Otherwise, the final wavenumber range used to obtain xF starts at the lowest wavenumber at which MAD<2(2/d)^1/2
+```
+
+There are `r sum(spec_good)` good spectra out of `r length(spec_good)` spectra in the profile.
+
+##### For our sample spectra:
+```{r, echo = FALSE}
+for(spec in specnr_sub){
+  print(paste(
+    'spectrum ', 
+    spec, 
+    ': ', 
+    ifelse(sum(crit[[spec]])==0, 'MADs do not fulfill criteria, spectrum should be discarded', ifelse(sum(crit[[spec]])==length(crit[[spec]]), 'all MADs fulfill criteria, good spectrum', 'at least one MAD value outside allowed range, change minimum k')),
+    sep = ''))
+}
+```
+
+##### Summary
+So, from the MAD criteria check, about half of all spectra are good, but even some of the 'good' spectra don't look right, e.g. spectrum 130 (see figure with model above).

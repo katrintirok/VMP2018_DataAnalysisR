@@ -1,0 +1,341 @@
+---
+title: "Estimating chi"
+output:
+  html_notebook: default
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+
+Spectra of temperature gradients are located within the diss structure created in matlab when running `quick_look.m` (find them in structure `diss.sclar_spectra.scalar_spec`). They are the uncorrected frequency spectra. Function `get_scalar_spectra-odas.m` calculates spectra of scalar vectors (including fast temperature gradients), uses functions `clean_shear_spec.m` or `csd_odas.m` to calculate spectra. On calculation of the spectra, the temperature gradient data are detrended linearly per fft segment. Detrending is done by fitting a linear model using `polyfit()` in matlab, and then substracting this model from the data. In this notebook, data were high pass filtered instead of detrended! ($\text{topband} = \frac{1}{4} \text{fft_length}$, $\text{passband} = \frac{1}{2} \text{fft_length}$). $\text{fft_length}$ correspond to the number of measurements used to calculate a spectrum. Default value chose by Rolf Lueck for our vmp data was 0.5*fs (with fs = 1024 Hz, i.e. fft_length = 512).
+
+This notebook imports the spectral data saved from matlab, corrects for the frequency response of the sensor using Vachon and Lueck correction (used by Rockland in odas and by Bluteau) and tries to fit the model stated in Bluteau to the spectrum.
+
+Data from profile 032 was used for testing, dive depth was 414 m. 146 spectra were calculated.
+
+##### Following questions:
+- which range of wavenumbers ($k$) to fit model to? 
+  - the answer can be found in Bluteau, minimum $k$ depends on a 'goodness of fit' criteria MAD, maximum $k$ depends on $\epsilon \le 0.1 \eta$ with $\eta$ = Kolmogorov length scale = $(\frac{\nu^3}{\epsilon})^\frac{1}{4}$ ($\nu$ = kinematic viscosity, $~10^{-6}$ for water at $20^\circ C$) 
+- data spectrum doesnt really increase towards higher wave numbers, like in spectra in Bluteau
+  --> tried different things, (i) checked that data are detrended, linear detrending doesn't seem to have much effect; (ii) tried HP filtering -> using a filter with stopband at 1/4 fft_length and passband at 1/2 fft_length and 100% attenuation, a bit better than linear detrending, but there are still a lot of spectra where spectrum increases towards the low wavenumbers
+- model doesn't seem to fit data very well, why?, do I miss some more transformation of spectrum?
+- do I have to convert from cpm to rad/m? --> no, but add the conversion from rad/m to cpm to the model constant $C_T$ (not 100% clear though, whether necessary)  
+
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+library(R.matlab)
+library(tidyverse)
+library(ggplot2)
+library(stats4)  # for mle 
+library(scales) # for scientific format of numbers
+```
+
+### Reading in the data
+
+```{r}
+# read in data, mat structures are read as lists in R
+spec <- readMat('../data/gradT_spectra_HPfilt_fftl2.mat')
+diss <- readMat('../data/Diss_032_fft2.mat')
+diss_fieldnames <- unlist(readMat('../data/diss_fieldnames_fft2.mat'))
+```
+
+```{r}
+# extract spectrum energy values from spec list
+gradT1 <- spec[[1]][[1]][,1,]
+gradT2 <- spec[[1]][[1]][,2,]
+```
+
+```{r}
+# wavenumber 2D matrix with each column for one depth segment from spec list
+waven1 <- spec[[1]][[3]]
+
+# frequency matrix from spec list
+freq <- spec[[1]][[2]]
+```
+
+```{r}
+# additional variables
+mean_speed <- diss[[1]][[16]]
+pressure <- diss[[1]][[18]]
+eps <- diss[[1]][[1]]
+eps1 <- eps[1,]
+eps2 <- eps[2,]
+# delete unused variables
+rm(diss)
+rm(spec)
+```
+
+Dimensions of some variables:
+`gradT1`: `r dim(gradT1)`, 
+`freq`: `r dim(freq)`, 
+`waven1`: `r dim(waven1)`, `eps1`: `r length(eps1)`
+
+
+### Correcting for frequency response
+
+The following calculations are done exemplary for only one temperature sensor.
+
+ - expression for tau from odas library
+
+```{r}
+# correction as in odas library
+F_0 <- 25*sqrt(mean_speed)
+tau_therm <- 2*pi*F_0 / sqrt(sqrt(2) - 1)   # time constant for double-pole response
+tau_therm <- 1 / tau_therm
+# correction:
+gradT1_c <- matrix(data=NA, nrow=length(freq[,1]), ncol=length(freq[1,]))
+for(index in 1:length(freq[1,])){
+  gradT1_c[,index] <- gradT1[,index] * (1 + (2*pi*tau_therm[index]*freq[,index])^2)^2
+}
+
+# H_VL correction as in Bluteau
+tau0 <- 4.1 / 1000
+u0 <- 1
+u3 <- mean_speed   # average profiling velocity
+tau_vl <- tau0 * (u3/u0)^-1/2
+gradT1_c_vl <- matrix(data=NA, nrow=length(freq[,1]), ncol=length(freq[1,]))
+for(index in 1:length(freq[1,])){
+  gradT1_c_vl[,index] <- gradT1[,index] * (1 + (2*pi*tau_vl[index]*freq[,index])^2)^2
+}
+
+# H_S correction as in Bluteau
+tau_s <- 0.01 #[s]
+gradT1_c_s <- matrix(data=NA, nrow=length(freq[,1]), ncol=length(freq[1,]))
+for(index in 1:length(freq[1,])){
+  gradT1_c_s[,index] <- gradT1[,index] * (1 + (2*pi*tau_s*freq[,index])^2)^2
+}
+```
+
+#### Plot of uncorrected and corrected sample spectra
+
+```{r echo=FALSE}
+specnr <- 70 #30
+plot(log10(freq[,specnr]), log10(gradT1_c[,specnr]), type='l', ylim=c(-10,-2))
+lines(log10(freq[,specnr]), log10(gradT1[,specnr]), col='red')
+title('frequency spectrum corrected (black), uncorrected (red)')
+lines(log10(freq[,specnr]), log10(gradT1_c_vl[,specnr]), col='blue')
+lines(log10(freq[,specnr]), log10(gradT1_c_s[,specnr]), col='magenta')
+legend("bottomleft",c('uncorrected','odas correction','H_VL (Bluteau)','H_S (Bluteau)'), col = c('red', 'black', 'blue','magenta'), lty=1)
+```
+
+
+
+### Fit model to spectra with chi as parameter estimated with MLE 
+
+model to fit:
+$$\Psi_{\delta T/\delta x_i}(k) = C_T \chi \epsilon^{-1/3} k^{1/3}$$
+
+  with $\Psi_{\delta T/\delta x_i}$ = corrected energy spectrum,
+  
+  $C_T$ = Obukhov-Corrsin universal constant with values between 0.3 and 0.5, 0.4 recommended,
+  
+  and $k$ = wavenumber ($k$ is here in rad/m, a conversion coefficient to convert to cpm should be added to the model?)
+
+#### Plot model for some chi values
+```{r}
+C_T <- 0.4
+chi <- c(10^(-5), 10^(-7), 10^(-9))
+k <- waven1[,1]
+psi <- matrix(NaN, nrow=length(k), ncol=length(chi))
+for(chii in 1:length(chi)){
+  psi[,chii] <- C_T * chi[chii] * eps1[1]^(-1/3) * k^(1/3)
+}
+```
+
+```{r echo=FALSE}
+psi <- as.data.frame(psi)
+model <- data.frame(k, psi) %>%
+  rename(chi1 =V1, chi2 = V2, chi3=V3) %>%
+  gather(key = chi, value = psi, -k)
+
+ggplot(model, aes(x = log10(k), y = log10(psi), col=chi)) + geom_line()
+
+```
+
+#### Try MLE (maximum likelihood estimation) fitting
+
+##### 1) Convert measured spectra to wavenumber spectra by multiplying with mean_speed
+
+Dimension of corrected spectra `gradT1_c` is `r dim(gradT1_c)`
+
+```{r}
+# make empty (NA) matrix of correct size
+P_gradT1_c <- matrix(NA, nrow = length(gradT1_c[,1]), ncol=length(gradT1_c[1,]))
+# fill matrix with converted values
+for(index in 1:length(gradT1_c[,1])){
+  P_gradT1_c[index,] <- gradT1_c[index,] * mean_speed
+}
+```
+
+##### 2) Test slope of inertial sub-range, i.e. range over which $\chi$ will be estimated by model
+```{r}
+slopes <- c()
+# loop through individual spectra for one profile (here 146 spectra in profile 32)
+for(i in 1:length(P_gradT1_c[1,])){
+  segment <- i
+  # calculate Kolmogorov length scale for eps1 to get upper k limit
+  eta_i <- (((10^-6)^3)/eps1[i])^0.25
+  # upper k limit
+  K_max <- 0.1/eta_i
+  # lower k limit (start with 0)
+  K_min <- 0
+  # indices for subsetting model values
+  # find index for lower k limit (2 when K_min=0, otherwise the last one where k<=K_min)
+  min_ind <- max(length(waven1[waven1[,segment]<=K_min, segment]),2)
+  # find index for upper k limit
+  max_ind <- length(waven1[waven1[,segment]<=K_max,segment]) 
+  # corrected wavenumber temp-gradient spectrum --> P_gradT1_c for chosen k range
+  y <- P_gradT1_c[min_ind:max_ind,segment]   
+  # wavenumbers (k) for chosen range
+  x <- waven1[min_ind:max_ind,segment] 
+  # fit a linear model to y = mx + b
+  linearmod <- lm(log10(y) ~ log10(x))
+  # slope (m) of linear model - should be positive, around 0.3
+  slopes[i] <- linearmod$coefficients[2]
+}
+
+plot(slopes, pressure, type='l')
+lines(log10(eps[1,])+8, pressure, col='green')
+```
+
+##### 3) Choose spectrum to run model on
+
+The fit is done with different sample spectra, e.g. 70, which is from around 200 m depth in profile 32
+
+```{r}
+specnr <- 30 # 70 is a good one, 100 too, 16 too, 30 is not good
+segment <- specnr
+```
+
+
+##### 4) find highest value for $k$ to include in fit using the criterium correction $H(k) \leq 3$
+```{r}
+# calculate correction factor
+f <- freq[,segment]
+tau0 <- 4.1 * 10^-3
+speed0 <- 1
+tau <- tau0 * (mean_speed[segment,]/speed0)^(-0.5)
+Hf <- (1 + (2 * pi * tau *f)^2)^(2)
+# find index where Hf does not exceed 3
+ind <- length(Hf[Hf <= 3])
+# find K at ind
+K_max = waven1[ind,segment]
+
+# K must never be higher than 0.1 * eta^-1 (eta = Kolmogorov length scale)
+eta <- (((10^-6)^3)/mean(eps1[segment],eps2[segment]))^0.25 # Kolmogorov length scale
+# final upper limit of k
+K_max <- min(0.1/eta,K_max)
+```
+
+##### 5) define x and y for model, only use spectrum for wavenumbers < K_max and > K_min
+```{r}
+# K_min needs to be checked after fitting, default value = 0
+K_min <- 0 #waven1[2*steps+2,segment] #0
+min_ind <- max(length(waven1[waven1[,segment]<=K_min, segment]),2)
+max_ind <- length(waven1[waven1[,segment]<=K_max,segment]) # index for subsetting model values
+# y values are corrected wavenumber temp-gradient spectrum --> P_gradT1_c for chosen k range
+y <- P_gradT1_c[min_ind:max_ind,segment]   
+# x values are k for chosen range
+x <- waven1[min_ind:max_ind,segment] 
+```
+
+##### 6)  Definition of maximum likelihood function
+```{r}
+#likelihood function definition
+LL <- function(chi) {
+  # Find residuals
+  R = y - C_T * chi * mean(eps1[segment],eps2[segment])^(-1/3) * x^(1/3)
+  # Calculate the likelihood for the residuals
+  R = suppressWarnings(dnorm(R, log = TRUE))
+  # Sum the log likelihoods for all of the data points
+  -sum(R)
+}
+
+#model fit
+fit <- suppressWarnings(mle(LL, start = list( chi=10^(-7))
+                            ,nobs = length(y),  method='L-BFGS-B'))
+```
+
+##### 7) Results of model fit: $\chi =$ `r scientific(fit@coef[1],3)`
+```{r echo=FALSE}
+summary(fit) 
+```
+
+
+##### 8) calculate model with fitted $\chi$ for plotting
+```{r}
+spec_model <-  C_T * fit@coef[1] * mean(eps1[segment],eps2[segment])^(-1/3) * x^(1/3)
+```
+
+##### 9) check for lower K condition using MAD (mean absolute deviation) on observed and modelled spec
+```{r}
+phi <- y   # corrected wavenumber temp-gradient = measured spectrum
+psi <- spec_model   # modelled spectrum
+steps <- 6  # 0.5-0.7 of a decade long?
+nr_steps <- floor(length(phi)/steps)
+modulo <- length(phi) %% steps
+if(modulo >= 4){
+  nr_steps <- nr_steps + 1 
+}
+
+# calculate MAD for steps of 6 values for the spectrum
+MAD <- c()
+crit <- c()
+for(i in 1:nr_steps){
+    n_st <- (i-1) * steps + 1
+    if(i == nr_steps){
+      if(modulo >= 4){
+        n_en <- n_st + modulo - 1
+      }else{
+        n_en <- n_st + steps - 1 + modulo
+      }
+    }else{
+      n_en <- n_st + steps - 1
+    }
+    phi_n = phi[n_st:n_en]
+    psi_n = psi[n_st:n_en]
+    MAD[i] <-  1/(length(phi_n)) * sum(abs(phi_n/psi_n - mean(phi_n/psi_n)))
+    
+    # check whether MAD fits criteria, crit = 0 (bad), 1 (good)
+    dof <- length(phi_n) - 1   # degrees of freedom
+    crit[i] <- ifelse(MAD[i] < 2 * (2/dof)^0.5, 1, 0)
+    
+} # end for loop
+
+#If all subsets of the spectrum yielded a MAD>2(2/d)^1/2 (d = degrees of freedom --> n-1 ?) (Ruddick et al. 2000), then the spectrum is completely discarded. Otherwise, the final wavenumber range used to obtain xF starts at the lowest wavenumber at which MAD<2(2/d)^1/2
+
+# to decide whether to through away spectrum
+if(sum(crit) == 0){
+  print('MADs does not fulfills criteria, spectrum should be discarded')
+}else if(sum(crit) > 0 & sum(crit) < length(crit)){
+  print('at least one MAD value outside allowed range, choose minimum K')
+}else if(sum(crit) == length(crit)){
+  print('all MADs fulfill criteria, good spectrum')
+  print(paste('specnr ', specnr, ': estimated Chi = ', signif(fit@coef,3), ', Eps = ', signif(mean(eps1[segment],eps2[segment]),3), sep = ''))
+  print(paste('logLik = ', signif(logLik(fit),3), ', AIC = ', signif(AIC(fit),3), sep=''))
+  print(paste('K_min = ', signif(K_min,3), ', K_max = ', signif(K_max,3), sep=''))
+}
+
+# check smallest 
+#indexcr <- steps #(length(crit[crit==0]) + 1 ) * steps
+#K_min <- waven1[indexcr,segment]
+
+# fit a linear model to check
+linearmod <- lm(log10(y) ~ log10(x))
+print(paste('slope of linear model:', signif(linearmod$coefficients[2],3)))
+```
+
+10) plot data and model
+```{r}
+pl_data <- data.frame(k_data=waven1[-1,segment], spec_data=P_gradT1_c[-1,segment])
+pl_model <- data.frame(k_model = x, spec_model = spec_model)
+pl_linm <- data.frame(linm_x = x, linm_y = 10^(linearmod$coefficients[2]*log10(x)+linearmod$coefficients[1]))
+ggplot() + 
+  geom_point(data=pl_data, aes(x=k_data, y = spec_data)) + 
+  geom_line(data=pl_model, aes(x=k_model, y=spec_model), color='red') +
+  scale_y_continuous(trans='log10', limits=c(10^-9,10^-2)) +
+  scale_x_continuous(trans='log10') + #, limits=c(x[1],K_max)) +
+  geom_line(data = pl_linm, aes(x=linm_x, y = linm_y), color = 'blue')
+```
+
+

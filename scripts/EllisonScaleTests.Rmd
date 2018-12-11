@@ -1,0 +1,330 @@
+---
+title: "Ellison Scale Tests"
+output: html_notebook
+---
+
+
+
+```{r, echo = F}
+library(dplyr)
+library(dbplyr)
+library(ggplot2)
+library(gsw)
+library(tidyverse)
+```
+
+```{r, echo=F}
+#connect data base
+vmp_profiles <- DBI::dbConnect(RSQLite::SQLite(), "../data/SQLite_VMP.sqlite")
+# show infos about database
+src_dbi(vmp_profiles)
+
+# read out data from fastData table for profile 53 (KZN_032)
+vmp53 <- tbl(vmp_profiles, "VMP_profiles_fastData")
+vmp53_df <- vmp53 %>%
+  filter(profile_nr == 53) %>%
+  select(-c(Chla_mug_L, Turbidity)) %>%
+  collect()
+
+head(vmp53_df)
+
+# sort profiles for temperature
+b <- vmp53_df
+# sort pressure increasing
+b <- b[order(b$Pressure_dbar, decreasing=F),]
+#2nd add sorted T1 column a
+b_t <- select(b,Pressure_dbar,T1_degC,T2_degC)   #pressure, T1, T2
+# sort T1 decreasing!
+b_t1s <- b_t[order(b_t$T1_degC, decreasing=T),]
+b_t2s <- b_t[order(b_t$T2_degC, decreasing=T),]
+# add sorted T1 to b  
+b$T1_s <- b_t1s$T1_degC
+b$T2_s <- b_t2s$T2_degC
+b$pressure1_s <- b_t1s$Pressure_dbar
+b$pressure2_s <- b_t2s$Pressure_dbar
+b$tsc1 <- b$pressure1_s - b$Pressure_dbar
+b$tsc2 <- b$pressure2_s - b$Pressure_dbar
+head(b)
+```
+
+## Examples of temperature profiles
+
+Some examples of sorted (over entire depth) versus original temperature profiles for different segments, shown over _fft_length_ (1024*0.5, ~0.5m, _s in legend means sorted profile):
+
+```{r, echo=F}
+seg_length <- 1024 * 0.5
+
+stvec <- c(20, 50, 100, 600, 5, 200, 500, 700)
+c <- data.frame()
+for(i in 1:length(stvec)){
+  seg_st <- stvec[i] * seg_length
+  seg_en <- seg_st + seg_length -1
+  b_i <- b[seg_st:seg_en, ]
+
+  ci <- b_i %>%
+    select(profile_nr,Pressure_dbar, time_sec,T1_degC, T2_degC, T1_s, T2_s) %>%
+    gather(key=Temp_var, -c(Pressure_dbar,time_sec,profile_nr), value=T_degC)
+  ci$seg_midpr <- round(mean(ci$Pressure_dbar),0) 
+  
+  c <- rbind(c,ci)
+
+}
+p1 <- ggplot(data = c) + 
+    geom_line(aes(y=T_degC, x=Pressure_dbar, col=Temp_var)) +
+    scale_x_reverse() +
+    coord_flip() +
+  theme_bw() +
+  facet_wrap(~ seg_midpr, nrow=2, scales='free')
+p1
+
+```
+
+Some examples of sorted versus original temperature profiles for different segments, shown over larger range, 1024*2, ~2m:
+
+```{r, echo=F}
+seg_length <- 1024 * 2
+
+stvec <- c(0, 1, 5, 10, 20, 50, 80, 120)
+c <- data.frame()
+for(i in 1:length(stvec)){
+  seg_st <- stvec[i] * seg_length
+  seg_en <- seg_st + seg_length -1
+  b_i <- b[seg_st:seg_en, ]
+
+  ci <- b_i %>%
+    select(profile_nr,Pressure_dbar, time_sec,T1_degC, T2_degC, T1_s, T2_s) %>%
+    gather(key=Temp_var, -c(Pressure_dbar,time_sec,profile_nr), value=T_degC)
+  ci$seg_midpr <- round(mean(ci$Pressure_dbar),0) 
+  
+  c <- rbind(c,ci)
+
+}
+p2 <- ggplot(data = c) + 
+    geom_line(aes(y=T_degC, x=Pressure_dbar, col=Temp_var)) +
+    scale_x_reverse() +
+    coord_flip() +
+  theme_bw() +
+  facet_wrap(~ seg_midpr, nrow=2, scales='free')
+p2
+
+```
+
+### same profile plots for slow data (density and temperature)
+
+```{r, echo=F}
+#connect data base
+vmp_profiles <- DBI::dbConnect(RSQLite::SQLite(), "../data/SQLite_VMP.sqlite")
+# read out data from fastData table for profile 53 (KZN_032)
+vmp53sl <- tbl(vmp_profiles, "VMP_profiles_slowData_cleaned")
+vmp53sl_df <- vmp53sl %>%
+  filter(profile_nr == 53) %>%
+  collect()
+DBI::dbDisconnect(vmp_profiles)
+
+#head(vmp53sl_df)
+
+# practical salinity using conductivity in ...?
+vmp53sl_df$SP <- gsw_SP_from_C(vmp53sl_df$Conductivity_mS_per_cm,vmp53sl_df$Temperature_degC,vmp53sl_df$Pressure_dbar)
+# absolute salinity
+#average latitude for vmp profiles = -27.52277 and av long = 32.7259
+long <- 32.7259
+lat <- -27.52277
+vmp53sl_df$SA <- gsw_SA_from_SP(vmp53sl_df$SP,vmp53sl_df$Pressure_dbar,long,lat)
+# conservative temperature from in-situ temperature
+vmp53sl_df$CT <- gsw_CT_from_t(vmp53sl_df$SA,vmp53sl_df$Temperature_degC,vmp53sl_df$Pressure_dbar)
+# in-situ density
+vmp53sl_df$rho <- gsw_rho(vmp53sl_df$SA,vmp53sl_df$CT,vmp53sl_df$Pressure_dbar)
+# potential density
+p_ref = 0      #[dbar] --> =0bar (next would be 100bar=1000dbar, but max p of 300dbar closer to 0
+vmp53sl_df$rho_pot <- gsw_rho(vmp53sl_df$SA,vmp53sl_df$CT,p_ref)
+
+# sort profiles for temperature
+bsl <- vmp53sl_df
+# sort pressure increasing
+bsl <- bsl[order(bsl$Pressure_dbar, decreasing=F),]
+#2nd add sorted rho/temp column a
+bsl_R <- select(bsl,Pressure_dbar,rho_pot)   # potential density
+bsl_T <- select(bsl,Pressure_dbar,Temperature_degC)       # temp
+# sort density/temp increasing/decreasing!
+bsl_Rs <- bsl_R[order(bsl_R$rho_pot, decreasing=F),]
+bsl_Ts <- bsl_T[order(bsl_T$Temperature_degC, decreasing=T),]
+# add sorted T1 to b  
+bsl$R_s <- bsl_Rs$rho_pot
+bsl$T_s <- bsl_Ts$Temperature_degC
+bsl$pressureR_s <- bsl_Rs$Pressure_dbar
+bsl$pressureT_s <- bsl_Ts$Pressure_dbar
+bsl$tscR <- bsl$pressureR_s - bsl$Pressure_dbar
+bsl$tscT <- bsl$pressureT_s - bsl$Pressure_dbar
+#head(bsl)
+```
+
+```{r, echo=F}
+seg_length <- 128 * 20
+
+stvec <- c(0,1,2,4, 6,10,12,15) # 10, 20, 30, 50, 60)
+# stvec <- c(0, 1, 5, 10, 20, 30, 50, 60) # for 128 * 5
+csl <- data.frame()
+for(i in 1:length(stvec)){
+  seg_st <- stvec[i] * seg_length
+  seg_en <- seg_st + seg_length -1
+  b_i <- bsl[seg_st:seg_en, ]
+
+  ci <- b_i %>%
+    select(profile_nr,Pressure_dbar, time_sec, Temperature_degC, rho_pot, T_s, R_s) %>%
+    gather(key=rho_var, -c(profile_nr, Pressure_dbar, time_sec, Temperature_degC, T_s), value=rho_pot) %>%
+    gather(key=temp_var, -c(profile_nr, Pressure_dbar, time_sec, rho_var, rho_pot), value=temp)
+    
+  ci$seg_midpr <- round(mean(ci$Pressure_dbar),0) 
+  
+  csl <- rbind(csl,ci)
+
+}
+#plot temp
+ptemp <- ggplot(data = csl) + 
+  geom_line(aes(y=temp, x=Pressure_dbar, col=temp_var)) +
+  scale_x_reverse() +
+  coord_flip() +
+  theme_bw() +
+  facet_wrap(~ seg_midpr, nrow=2, scales='free')
+ptemp
+
+# plot density
+prho <- ggplot(data = csl) + 
+  geom_line(aes(y=rho_pot, x=Pressure_dbar, col=rho_var)) +
+  scale_x_reverse() +
+  coord_flip() +
+  theme_bw() +
+  facet_wrap(~ seg_midpr, nrow=2, scales='free')
+prho
+
+```
+
+### Plot sorted pressure from rho and temp over actual pressure
+
+```{r, echo=F}
+seg_length <- 128 * 20
+
+stvec <- c(0,1,2,4, 6,10,12,15) # 10, 20, 30, 50, 60)
+# stvec <- c(0, 1, 5, 10, 20, 30, 50, 60) # for 128 * 5
+dsl <- data.frame()
+for(i in 1:length(stvec)){
+  seg_st <- stvec[i] * seg_length
+  seg_en <- seg_st + seg_length -1
+  b_i <- bsl[seg_st:seg_en, ]
+
+  di <- b_i %>%
+    select(profile_nr,Pressure_dbar, pressureT_s, pressureR_s) %>%
+    gather(key=p_var, -c(profile_nr, Pressure_dbar), value=pressure)
+  
+  di$seg_midpr <- round(mean(di$Pressure_dbar),0) 
+  
+  dsl <- rbind(dsl,di)
+
+}
+#plot sorted pressure
+pp <- ggplot(data = dsl) + 
+  geom_line(aes(y=pressure, x=Pressure_dbar, col=p_var)) +
+  scale_x_reverse() +
+  coord_flip() +
+  theme_bw() +
+  facet_wrap(~ seg_midpr, nrow=2, scales='free')
+pp
+```
+
+
+### Plot of r^2 of fitted linear model for sections of 1024*0.5 data points (about 0.5 m):
+
+```{r, echo=F}
+# fit model through segments
+# model data
+md <- b
+
+fs <- 1024
+fft_length <- 0.5
+seg_length <- fs * fft_length
+overlap <- fs * fft_length/2  #seg_length/(fft_length/2)
+
+#nr_segments <- floor(length(b$time_sec)/(seg_length - overlap))
+
+rsq <- data.frame(p_mid = NA, rsqT1 = NA, rsqT2 = NA, rsqT1b = NA, rsqT2b = NA)
+seg_st <- 1
+seg_en <- seg_st + seg_length - 1
+md_i <- md[seg_st:seg_en, ]
+count <- 1
+while(length(md$profile_nr) > (seg_st + seg_length - 1)){
+  #for(i in 1:nr_segments){
+  mod1 <- summary(lm(T1_s ~ Pressure_dbar, md_i))
+  mod2 <- summary(lm(T2_s ~ Pressure_dbar, md_i))
+  # do for sorted T per segment
+  md_i_t <- select(md_i,Pressure_dbar,T1_degC,T2_degC)   #pressure, T1, T2
+  # sort T1 decreasing!
+  md_i_t1s <- md_i_t[order(md_i_t$T1_degC, decreasing=T),]
+  md_i_t2s <- md_i_t[order(md_i_t$T2_degC, decreasing=T),]
+  md_i$T1b_s <- md_i_t1s$T1_degC
+  md_i$T2b_s <- md_i_t2s$T2_degC
+  mod1b <- summary(lm(T1b_s ~ Pressure_dbar, md_i))
+  mod2b <- summary(lm(T2b_s ~ Pressure_dbar, md_i))
+  rsq_i <- data.frame(p_mid = mean(md_i$Pressure_dbar), 
+                      rsqT1 = mod1$r.squared, 
+                      rsqT2 = mod2$r.squared,
+                      rsqT1b = mod1b$r.squared,
+                      rsqT2b = mod2b$r.squared)
+  rsq <- rbind(rsq, rsq_i)
+  # set new segment start/end
+  seg_st <- seg_st + (seg_length-overlap)
+  seg_en <- seg_st + seg_length - 1
+  md_i <- md[seg_st:seg_en, ]
+  count <- count + 1
+}
+rsq <- rsq[-1,]
+```
+
+
+```{r, echo = F}
+pl.data <- gather(rsq, key = var, -p_mid, value = rsq)
+pl.data$rcat <- ifelse(pl.data$var %in% c('rsqT1','rsqT2'), 'entire profile sorted', 'segment sorted')
+ggplot(data = pl.data) + 
+  geom_line(aes(y = rsq, x = p_mid, col = var)) +
+  scale_x_reverse() +
+  coord_flip() +
+  theme_bw() +
+  facet_grid(. ~ rcat)
+```
+
+## Calculate Ellison Scale
+
+Ellison scale is calculated for each data point by taking the deviation of the measured temperature from the sorted temperature and devide by the displacement (thorpe scale) resulting from the sorting process. 
+
+```{r}
+profnum <- 53
+fs <- 1024
+diss_length <- 5
+overlap <- diss_length/2
+seg_length <- fs * diss_length
+overlap_length <- fs * overlap
+
+d <- data.frame()
+seg_st <- 1
+seg_en <- seg_st + seg_length - 1
+b_i <- b[seg_st:seg_en, ]
+while(length(b$Pressure_dbar) >= (seg_st + seg_length - 1)){
+  attach(b_i)
+  Tdev1 <- abs(T1_degC - T1_s)
+  Tdev2 <- abs(T2_degC - T2_s)
+  LE1i <- ifelse(Tdev1 == 0, 0, Tdev1/abs(tsc1))
+  LE2i <- ifelse(Tdev2 == 0, 0, Tdev2/abs(tsc2))
+  LEi <- data.frame(profile_nr=profnum, pressure=mean(Pressure_dbar), 
+                      LE_T1=sqrt(mean(LE1i^2)), LE_T2=sqrt(mean(LE2i^2)),
+                      tsc_T1=sqrt(mean(b_i$tsc1^2)), tsc_T2=sqrt(mean(b_i$tsc2^2)))
+  detach(b_i)
+  d <- rbind(d, LEi)
+  seg_st <- seg_st + (seg_length-overlap_length)
+  seg_en <- seg_st + seg_length - 1
+  b_i <- b[seg_st:seg_en, ]
+  }
+```
+
+```{r}
+ggplot(data=d, aes(x=LE_T1)) + geom_density()
+ggplot(data=d, aes(x=LE_T1, y = tsc_T1)) + geom_point()
+```

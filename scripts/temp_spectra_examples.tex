@@ -1,0 +1,448 @@
+\documentclass[]{article}
+\usepackage{lmodern}
+\usepackage{amssymb,amsmath}
+\usepackage{ifxetex,ifluatex}
+\usepackage{fixltx2e} % provides \textsubscript
+\ifnum 0\ifxetex 1\fi\ifluatex 1\fi=0 % if pdftex
+  \usepackage[T1]{fontenc}
+  \usepackage[utf8]{inputenc}
+\else % if luatex or xelatex
+  \ifxetex
+    \usepackage{mathspec}
+  \else
+    \usepackage{fontspec}
+  \fi
+  \defaultfontfeatures{Ligatures=TeX,Scale=MatchLowercase}
+\fi
+% use upquote if available, for straight quotes in verbatim environments
+\IfFileExists{upquote.sty}{\usepackage{upquote}}{}
+% use microtype if available
+\IfFileExists{microtype.sty}{%
+\usepackage{microtype}
+\UseMicrotypeSet[protrusion]{basicmath} % disable protrusion for tt fonts
+}{}
+\usepackage[margin=1in]{geometry}
+\usepackage{hyperref}
+\hypersetup{unicode=true,
+            pdftitle={Estimating Chi - examples},
+            pdfborder={0 0 0},
+            breaklinks=true}
+\urlstyle{same}  % don't use monospace font for urls
+\usepackage{color}
+\usepackage{fancyvrb}
+\newcommand{\VerbBar}{|}
+\newcommand{\VERB}{\Verb[commandchars=\\\{\}]}
+\DefineVerbatimEnvironment{Highlighting}{Verbatim}{commandchars=\\\{\}}
+% Add ',fontsize=\small' for more characters per line
+\usepackage{framed}
+\definecolor{shadecolor}{RGB}{248,248,248}
+\newenvironment{Shaded}{\begin{snugshade}}{\end{snugshade}}
+\newcommand{\KeywordTok}[1]{\textcolor[rgb]{0.13,0.29,0.53}{\textbf{#1}}}
+\newcommand{\DataTypeTok}[1]{\textcolor[rgb]{0.13,0.29,0.53}{#1}}
+\newcommand{\DecValTok}[1]{\textcolor[rgb]{0.00,0.00,0.81}{#1}}
+\newcommand{\BaseNTok}[1]{\textcolor[rgb]{0.00,0.00,0.81}{#1}}
+\newcommand{\FloatTok}[1]{\textcolor[rgb]{0.00,0.00,0.81}{#1}}
+\newcommand{\ConstantTok}[1]{\textcolor[rgb]{0.00,0.00,0.00}{#1}}
+\newcommand{\CharTok}[1]{\textcolor[rgb]{0.31,0.60,0.02}{#1}}
+\newcommand{\SpecialCharTok}[1]{\textcolor[rgb]{0.00,0.00,0.00}{#1}}
+\newcommand{\StringTok}[1]{\textcolor[rgb]{0.31,0.60,0.02}{#1}}
+\newcommand{\VerbatimStringTok}[1]{\textcolor[rgb]{0.31,0.60,0.02}{#1}}
+\newcommand{\SpecialStringTok}[1]{\textcolor[rgb]{0.31,0.60,0.02}{#1}}
+\newcommand{\ImportTok}[1]{#1}
+\newcommand{\CommentTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textit{#1}}}
+\newcommand{\DocumentationTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{#1}}}}
+\newcommand{\AnnotationTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{#1}}}}
+\newcommand{\CommentVarTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{#1}}}}
+\newcommand{\OtherTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{#1}}
+\newcommand{\FunctionTok}[1]{\textcolor[rgb]{0.00,0.00,0.00}{#1}}
+\newcommand{\VariableTok}[1]{\textcolor[rgb]{0.00,0.00,0.00}{#1}}
+\newcommand{\ControlFlowTok}[1]{\textcolor[rgb]{0.13,0.29,0.53}{\textbf{#1}}}
+\newcommand{\OperatorTok}[1]{\textcolor[rgb]{0.81,0.36,0.00}{\textbf{#1}}}
+\newcommand{\BuiltInTok}[1]{#1}
+\newcommand{\ExtensionTok}[1]{#1}
+\newcommand{\PreprocessorTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textit{#1}}}
+\newcommand{\AttributeTok}[1]{\textcolor[rgb]{0.77,0.63,0.00}{#1}}
+\newcommand{\RegionMarkerTok}[1]{#1}
+\newcommand{\InformationTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{#1}}}}
+\newcommand{\WarningTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{#1}}}}
+\newcommand{\AlertTok}[1]{\textcolor[rgb]{0.94,0.16,0.16}{#1}}
+\newcommand{\ErrorTok}[1]{\textcolor[rgb]{0.64,0.00,0.00}{\textbf{#1}}}
+\newcommand{\NormalTok}[1]{#1}
+\usepackage{graphicx,grffile}
+\makeatletter
+\def\maxwidth{\ifdim\Gin@nat@width>\linewidth\linewidth\else\Gin@nat@width\fi}
+\def\maxheight{\ifdim\Gin@nat@height>\textheight\textheight\else\Gin@nat@height\fi}
+\makeatother
+% Scale images if necessary, so that they will not overflow the page
+% margins by default, and it is still possible to overwrite the defaults
+% using explicit options in \includegraphics[width, height, ...]{}
+\setkeys{Gin}{width=\maxwidth,height=\maxheight,keepaspectratio}
+\IfFileExists{parskip.sty}{%
+\usepackage{parskip}
+}{% else
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{6pt plus 2pt minus 1pt}
+}
+\setlength{\emergencystretch}{3em}  % prevent overfull lines
+\providecommand{\tightlist}{%
+  \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+\setcounter{secnumdepth}{0}
+% Redefines (sub)paragraphs to behave more like sections
+\ifx\paragraph\undefined\else
+\let\oldparagraph\paragraph
+\renewcommand{\paragraph}[1]{\oldparagraph{#1}\mbox{}}
+\fi
+\ifx\subparagraph\undefined\else
+\let\oldsubparagraph\subparagraph
+\renewcommand{\subparagraph}[1]{\oldsubparagraph{#1}\mbox{}}
+\fi
+
+%%% Use protect on footnotes to avoid problems with footnotes in titles
+\let\rmarkdownfootnote\footnote%
+\def\footnote{\protect\rmarkdownfootnote}
+
+%%% Change title format to be more compact
+\usepackage{titling}
+
+% Create subtitle command for use in maketitle
+\newcommand{\subtitle}[1]{
+  \posttitle{
+    \begin{center}\large#1\end{center}
+    }
+}
+
+\setlength{\droptitle}{-2em}
+  \title{Estimating Chi - examples}
+  \pretitle{\vspace{\droptitle}\centering\huge}
+  \posttitle{\par}
+  \author{}
+  \preauthor{}\postauthor{}
+  \date{}
+  \predate{}\postdate{}
+
+
+\begin{document}
+\maketitle
+
+This notebook imports the temperature spectral data saved from matlab
+(from structure \texttt{diss.sclar\_spectra.scalar\_spec}), corrects for
+the frequency response of the sensor using Vachon and Lueck correction
+(used by Rockland in odas) and fits the model stated in Bluteau to the
+temperature spectrum to estimate \(\chi\).
+
+Data from profile\_nr 32 was used for testing, dive depth was 414 m. 146
+spectra were calculated.
+
+\subsubsection{Correcting for frequency
+response}\label{correcting-for-frequency-response}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\CommentTok{# correction as in odas library}
+\CommentTok{# time constant for double-pole response:}
+\NormalTok{F_}\DecValTok{0}\NormalTok{ <-}\StringTok{ }\DecValTok{25}\OperatorTok{*}\KeywordTok{sqrt}\NormalTok{(mean_speed)}
+\NormalTok{tau_therm <-}\StringTok{ }\DecValTok{2}\OperatorTok{*}\NormalTok{pi}\OperatorTok{*}\NormalTok{F_}\DecValTok{0} \OperatorTok{/}\StringTok{ }\KeywordTok{sqrt}\NormalTok{(}\KeywordTok{sqrt}\NormalTok{(}\DecValTok{2}\NormalTok{) }\OperatorTok{-}\StringTok{ }\DecValTok{1}\NormalTok{)   }
+\NormalTok{tau_therm <-}\StringTok{ }\DecValTok{1} \OperatorTok{/}\StringTok{ }\NormalTok{tau_therm}
+\CommentTok{# correction:}
+\CommentTok{# create a NA matrix for gradT1 and T2 of correct size and then fill with corrected values}
+\NormalTok{gradT1_c <-}\StringTok{ }\KeywordTok{matrix}\NormalTok{(}\DataTypeTok{data=}\OtherTok{NA}\NormalTok{, }\DataTypeTok{nrow=}\KeywordTok{length}\NormalTok{(freq[,}\DecValTok{1}\NormalTok{]), }\DataTypeTok{ncol=}\KeywordTok{length}\NormalTok{(freq[}\DecValTok{1}\NormalTok{,]))}
+\NormalTok{gradT2_c <-}\StringTok{ }\KeywordTok{matrix}\NormalTok{(}\DataTypeTok{data=}\OtherTok{NA}\NormalTok{, }\DataTypeTok{nrow=}\KeywordTok{length}\NormalTok{(freq[,}\DecValTok{1}\NormalTok{]), }\DataTypeTok{ncol=}\KeywordTok{length}\NormalTok{(freq[}\DecValTok{1}\NormalTok{,]))}
+\ControlFlowTok{for}\NormalTok{(index }\ControlFlowTok{in} \DecValTok{1}\OperatorTok{:}\KeywordTok{length}\NormalTok{(freq[}\DecValTok{1}\NormalTok{,]))\{}
+\NormalTok{  gradT1_c[,index] <-}\StringTok{ }\NormalTok{gradT1[,index] }\OperatorTok{*}\StringTok{ }\NormalTok{(}\DecValTok{1} \OperatorTok{+}\StringTok{ }\NormalTok{(}\DecValTok{2}\OperatorTok{*}\NormalTok{pi}\OperatorTok{*}\NormalTok{tau_therm[index]}\OperatorTok{*}\NormalTok{freq[,index])}\OperatorTok{^}\DecValTok{2}\NormalTok{)}\OperatorTok{^}\DecValTok{2}
+\NormalTok{  gradT2_c[,index] <-}\StringTok{ }\NormalTok{gradT2[,index] }\OperatorTok{*}\StringTok{ }\NormalTok{(}\DecValTok{1} \OperatorTok{+}\StringTok{ }\NormalTok{(}\DecValTok{2}\OperatorTok{*}\NormalTok{pi}\OperatorTok{*}\NormalTok{tau_therm[index]}\OperatorTok{*}\NormalTok{freq[,index])}\OperatorTok{^}\DecValTok{2}\NormalTok{)}\OperatorTok{^}\DecValTok{2}
+\NormalTok{\} }\CommentTok{# end for loop}
+\end{Highlighting}
+\end{Shaded}
+
+\paragraph{Plot corrected sample
+spectra}\label{plot-corrected-sample-spectra}
+
+\includegraphics{temp_spectra_examples_files/figure-latex/unnamed-chunk-4-1.pdf}
+
+\paragraph{\texorpdfstring{Fit model to spectra with \(\chi\) as
+parameter estimated with MLE (maximum likelihood
+estimation)}{Fit model to spectra with \textbackslash{}chi as parameter estimated with MLE (maximum likelihood estimation)}}\label{fit-model-to-spectra-with-chi-as-parameter-estimated-with-mle-maximum-likelihood-estimation}
+
+model to fit:
+\[\Psi_{\delta T/\delta x_i}(k) = C_T \chi \epsilon^{-1/3} k^{1/3}\]
+
+with:
+
+\begin{itemize}
+\tightlist
+\item
+  \(\Psi_{\delta T/\delta x_i}\) = corrected energy spectrum
+  (\texttt{gradT\_c}),
+\item
+  \(C_T\) = Obukhov-Corrsin universal constant with values between 0.3
+  and 0.5, 0.4 recommended,
+\item
+  \(\epsilon\) = dissipation energy estimated from shear probe signal
+  (\texttt{eps1},\texttt{eps2}),
+\item
+  \(k\) = wavenumber (\(k\) is here in rad/m, a conversion coefficient
+  to convert to cpm should be added to the model?) (\texttt{waven})
+\end{itemize}
+
+\subparagraph{Convert measured spectra to wavenumber spectra by
+multiplying with
+mean\_speed}\label{convert-measured-spectra-to-wavenumber-spectra-by-multiplying-with-mean_speed}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\CommentTok{# make empty (NA) matrix of correct size}
+\NormalTok{P_gradT1_c <-}\StringTok{ }\KeywordTok{matrix}\NormalTok{(}\OtherTok{NA}\NormalTok{, }\DataTypeTok{nrow =} \KeywordTok{length}\NormalTok{(gradT1_c[,}\DecValTok{1}\NormalTok{]), }\DataTypeTok{ncol=}\KeywordTok{length}\NormalTok{(gradT1_c[}\DecValTok{1}\NormalTok{,]))}
+\NormalTok{P_gradT2_c <-}\StringTok{ }\KeywordTok{matrix}\NormalTok{(}\OtherTok{NA}\NormalTok{, }\DataTypeTok{nrow =} \KeywordTok{length}\NormalTok{(gradT2_c[,}\DecValTok{1}\NormalTok{]), }\DataTypeTok{ncol=}\KeywordTok{length}\NormalTok{(gradT2_c[}\DecValTok{1}\NormalTok{,]))}
+\CommentTok{# fill matrix with converted values}
+\ControlFlowTok{for}\NormalTok{(index }\ControlFlowTok{in} \DecValTok{1}\OperatorTok{:}\KeywordTok{length}\NormalTok{(gradT1_c[,}\DecValTok{1}\NormalTok{]))\{}
+\NormalTok{  P_gradT1_c[index,] <-}\StringTok{ }\NormalTok{gradT1_c[index,] }\OperatorTok{*}\StringTok{ }\NormalTok{mean_speed}
+\NormalTok{  P_gradT2_c[index,] <-}\StringTok{ }\NormalTok{gradT2_c[index,] }\OperatorTok{*}\StringTok{ }\NormalTok{mean_speed}
+\NormalTok{\}}
+\end{Highlighting}
+\end{Shaded}
+
+\subparagraph{\texorpdfstring{Find upper limit for \(k\) for model fit
+using the criterium correction \(H(k) \leq 3\) and
+\(k \leq 0.1 \eta ^{-1}\)}{Find upper limit for k for model fit using the criterium correction H(k) \textbackslash{}leq 3 and k \textbackslash{}leq 0.1 \textbackslash{}eta \^{}\{-1\}}}\label{find-upper-limit-for-k-for-model-fit-using-the-criterium-correction-hk-leq-3-and-k-leq-0.1-eta--1}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\CommentTok{# initialise K_max}
+\NormalTok{K_max <-}\StringTok{ }\KeywordTok{c}\NormalTok{()}
+\CommentTok{# loop through all spectra in profile 32}
+\ControlFlowTok{for}\NormalTok{(segment }\ControlFlowTok{in} \DecValTok{1}\OperatorTok{:}\DecValTok{146}\NormalTok{)\{}
+  \CommentTok{# calculate correction factor Hf}
+\NormalTok{  f <-}\StringTok{ }\NormalTok{freq[,segment]}
+\NormalTok{  tau0 <-}\StringTok{ }\FloatTok{4.1} \OperatorTok{*}\StringTok{ }\DecValTok{10}\OperatorTok{^-}\DecValTok{3}
+\NormalTok{  speed0 <-}\StringTok{ }\DecValTok{1}
+\NormalTok{  tau <-}\StringTok{ }\NormalTok{tau0 }\OperatorTok{*}\StringTok{ }\NormalTok{(mean_speed[segment,]}\OperatorTok{/}\NormalTok{speed0)}\OperatorTok{^}\NormalTok{(}\OperatorTok{-}\FloatTok{0.5}\NormalTok{)}
+\NormalTok{  Hf <-}\StringTok{ }\NormalTok{(}\DecValTok{1} \OperatorTok{+}\StringTok{ }\NormalTok{(}\DecValTok{2} \OperatorTok{*}\StringTok{ }\NormalTok{pi }\OperatorTok{*}\StringTok{ }\NormalTok{tau }\OperatorTok{*}\NormalTok{f)}\OperatorTok{^}\DecValTok{2}\NormalTok{)}\OperatorTok{^}\NormalTok{(}\DecValTok{2}\NormalTok{)}
+  \CommentTok{# find range where Hf does not exceed 3}
+\NormalTok{  ind <-}\StringTok{ }\KeywordTok{length}\NormalTok{(Hf[Hf }\OperatorTok{<=}\StringTok{ }\DecValTok{3}\NormalTok{])}
+  \CommentTok{# extract K for range where Hf <= 3}
+\NormalTok{  K_max_seg =}\StringTok{ }\NormalTok{waven[ind,segment]}
+  
+  \CommentTok{# calculate eta (Kolmogorov length scale) from epsilon for check of second criterium for upper k}
+\NormalTok{  eta <-}\StringTok{ }\NormalTok{(((}\DecValTok{10}\OperatorTok{^-}\DecValTok{6}\NormalTok{)}\OperatorTok{^}\DecValTok{3}\NormalTok{)}\OperatorTok{/}\KeywordTok{mean}\NormalTok{(eps1[segment],eps2[segment]))}\OperatorTok{^}\FloatTok{0.25} \CommentTok{# Kolmogorov length scale}
+  
+  \CommentTok{# final upper limit of k}
+\NormalTok{  K_max[segment] <-}\StringTok{ }\KeywordTok{min}\NormalTok{(}\FloatTok{0.1}\OperatorTok{/}\NormalTok{eta,K_max_seg)}
+\NormalTok{\}}
+\end{Highlighting}
+\end{Shaded}
+
+\subparagraph{Define x and y for model, only use spectrum for
+wavenumbers \textless{}
+K\_max}\label{define-x-and-y-for-model-only-use-spectrum-for-wavenumbers-k_max}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\CommentTok{# initialise x and y as empty lists}
+\NormalTok{x <-}\StringTok{ }\KeywordTok{list}\NormalTok{()}
+\NormalTok{y1 <-}\StringTok{ }\KeywordTok{list}\NormalTok{()}
+\NormalTok{y2 <-}\StringTok{ }\KeywordTok{list}\NormalTok{()}
+\CommentTok{# loop through all spectra for profile 32}
+\ControlFlowTok{for}\NormalTok{(segment }\ControlFlowTok{in} \DecValTok{1}\OperatorTok{:}\DecValTok{146}\NormalTok{)\{}
+\NormalTok{  K_min <-}\StringTok{ }\DecValTok{0} \CommentTok{# K_min needs to be checked after fitting, default value = 0}
+  \CommentTok{# set lower k limit index}
+\NormalTok{  min_ind <-}\StringTok{ }\KeywordTok{max}\NormalTok{(}\KeywordTok{length}\NormalTok{(waven[waven[,segment]}\OperatorTok{<=}\NormalTok{K_min, segment]),}\DecValTok{2}\NormalTok{)}
+  \CommentTok{# set upper k limit index}
+\NormalTok{  max_ind <-}\StringTok{ }\KeywordTok{length}\NormalTok{(waven[waven[,segment]}\OperatorTok{<=}\NormalTok{K_max[segment],segment]) }
+  \CommentTok{# define y, y values are corrected wavenumber temp-gradient spectrum --> P_gradT1_c for chosen k range}
+\NormalTok{  y1_seg <-}\StringTok{ }\NormalTok{P_gradT1_c[min_ind}\OperatorTok{:}\NormalTok{max_ind,segment]   }
+\NormalTok{  y2_seg <-}\StringTok{ }\NormalTok{P_gradT2_c[min_ind}\OperatorTok{:}\NormalTok{max_ind,segment]}
+  \CommentTok{# define x, x values are k (wavenumbers) for chosen range}
+\NormalTok{  x_seg <-}\StringTok{ }\NormalTok{waven[min_ind}\OperatorTok{:}\NormalTok{max_ind,segment]}
+  \CommentTok{# append x and y lists in each step}
+\NormalTok{  y1 <-}\StringTok{ }\KeywordTok{c}\NormalTok{(y1,}\KeywordTok{list}\NormalTok{(y1_seg))}
+\NormalTok{  y2 <-}\StringTok{ }\KeywordTok{c}\NormalTok{(y2,}\KeywordTok{list}\NormalTok{(y2_seg))}
+\NormalTok{  x <-}\StringTok{ }\KeywordTok{c}\NormalTok{(x,}\KeywordTok{list}\NormalTok{(x_seg))}
+\NormalTok{\} }\CommentTok{# end for loop}
+\CommentTok{# combine y1 and y2 in one list}
+\NormalTok{y <-}\StringTok{ }\KeywordTok{list}\NormalTok{(y1, y2)}
+\end{Highlighting}
+\end{Shaded}
+
+\subparagraph{\texorpdfstring{maximum \(k\) and number of spectral
+points included in estimating \(\chi\) for sample
+spectra:}{maximum k and number of spectral points included in estimating \textbackslash{}chi for sample spectra:}}\label{maximum-k-and-number-of-spectral-points-included-in-estimating-chi-for-sample-spectra}
+
+\begin{itemize}
+\tightlist
+\item
+  spectrum 16: \(k_{max}\) = 29.5, n = 74
+\item
+  spectrum 30: \(k_{max}\) = 18.3, n = 44
+\item
+  spectrum 50: \(k_{max}\) = 15.6, n = 37
+\item
+  spectrum 70: \(k_{max}\) = 22.1, n = 50
+\item
+  spectrum 100: \(k_{max}\) = 18.5, n = 39
+\end{itemize}
+
+\subparagraph{definition of maximum likelihood
+function}\label{definition-of-maximum-likelihood-function}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\CommentTok{# define C_T}
+\NormalTok{C_T <-}\StringTok{ }\FloatTok{0.4}
+\CommentTok{# initialise output fit and chi}
+\NormalTok{fit <-}\StringTok{ }\KeywordTok{list}\NormalTok{()}
+\NormalTok{chi <-}\StringTok{ }\KeywordTok{c}\NormalTok{()}
+\CommentTok{# loop through both temp sensors}
+\ControlFlowTok{for}\NormalTok{(sensor }\ControlFlowTok{in} \DecValTok{1}\OperatorTok{:}\DecValTok{2}\NormalTok{)\{}
+\NormalTok{  fit_sens <-}\StringTok{ }\KeywordTok{list}\NormalTok{()}
+\NormalTok{  chi_sens <-}\StringTok{ }\KeywordTok{c}\NormalTok{()}
+  \CommentTok{# loop through each spectrum in profile 32}
+  \ControlFlowTok{for}\NormalTok{(segment }\ControlFlowTok{in} \DecValTok{1}\OperatorTok{:}\DecValTok{146}\NormalTok{)\{}
+\NormalTok{    xs <-}\StringTok{ }\NormalTok{x[[segment]]}
+\NormalTok{    ys <-}\StringTok{ }\NormalTok{y[[sensor]][[segment]]}
+    \CommentTok{#likelihood function definition}
+\NormalTok{    LL <-}\StringTok{ }\ControlFlowTok{function}\NormalTok{(chi) \{}
+      \CommentTok{# Find residuals}
+\NormalTok{      R =}\StringTok{ }\NormalTok{ys }\OperatorTok{-}\StringTok{ }\NormalTok{C_T }\OperatorTok{*}\StringTok{ }\NormalTok{chi }\OperatorTok{*}\StringTok{ }\KeywordTok{mean}\NormalTok{(eps1[segment],eps2[segment])}\OperatorTok{^}\NormalTok{(}\OperatorTok{-}\DecValTok{1}\OperatorTok{/}\DecValTok{3}\NormalTok{) }\OperatorTok{*}\StringTok{ }\NormalTok{xs}\OperatorTok{^}\NormalTok{(}\DecValTok{1}\OperatorTok{/}\DecValTok{3}\NormalTok{)}
+      \CommentTok{# Calculate the likelihood for the residuals}
+\NormalTok{      R =}\StringTok{ }\KeywordTok{suppressWarnings}\NormalTok{(}\KeywordTok{dnorm}\NormalTok{(R, }\DataTypeTok{log =} \OtherTok{TRUE}\NormalTok{))}
+      \CommentTok{# Sum the log likelihoods for all of the data points}
+      \OperatorTok{-}\KeywordTok{sum}\NormalTok{(R)}
+\NormalTok{    \} }\CommentTok{# end of LL function}
+  
+    \CommentTok{#model fit}
+\NormalTok{    fit_seg <-}\StringTok{ }\KeywordTok{suppressWarnings}\NormalTok{(}\KeywordTok{mle}\NormalTok{(LL, }\DataTypeTok{start =} \KeywordTok{list}\NormalTok{( }\DataTypeTok{chi=}\DecValTok{10}\OperatorTok{^}\NormalTok{(}\OperatorTok{-}\DecValTok{7}\NormalTok{))}
+\NormalTok{                              ,}\DataTypeTok{nobs =} \KeywordTok{length}\NormalTok{(ys),  }\DataTypeTok{method=}\StringTok{'L-BFGS-B'}\NormalTok{))}
+\NormalTok{    fit_sens <-}\StringTok{ }\KeywordTok{c}\NormalTok{(fit_sens, }\KeywordTok{list}\NormalTok{(fit_seg))}
+\NormalTok{    chi_sens <-}\StringTok{ }\KeywordTok{c}\NormalTok{(chi_sens, fit_seg}\OperatorTok{@}\NormalTok{coef[[}\DecValTok{1}\NormalTok{]])}
+\NormalTok{  \} }\CommentTok{# end for loop through spectra}
+\NormalTok{  fit <-}\StringTok{ }\KeywordTok{c}\NormalTok{(fit, }\KeywordTok{list}\NormalTok{(fit_sens))}
+\NormalTok{  chi <-}\StringTok{ }\KeywordTok{list}\NormalTok{(chi, chi_sens)}
+\NormalTok{\} }\CommentTok{# end for loop through sensors}
+\end{Highlighting}
+\end{Shaded}
+
+\subparagraph{\texorpdfstring{Estimated \(\chi\) for sample
+spectra}{Estimated \textbackslash{}chi for sample spectra}}\label{estimated-chi-for-sample-spectra}
+
+\begin{verbatim}
+## [1] "spectrum 16: estimated Chi = 3.25e-07, Eps = 8.92e-09, logLik = -68, AIC = 138"
+## [1] "spectrum 30: estimated Chi = 4e-08, Eps = 1.13e-09, logLik = -40.4, AIC = 82.9"
+## [1] "spectrum 50: estimated Chi = 3.64e-07, Eps = 5.98e-10, logLik = -34, AIC = 70"
+## [1] "spectrum 70: estimated Chi = 6.57e-07, Eps = 2.37e-09, logLik = -45.9, AIC = 93.9"
+## [1] "spectrum 100: estimated Chi = 3.07e-07, Eps = 1.18e-09, logLik = -35.8, AIC = 73.7"
+## [1] "spectrum 130: estimated Chi = 4.41e-08, Eps = 3.52e-10, logLik = -25.7, AIC = 53.5"
+\end{verbatim}
+
+\subparagraph{\texorpdfstring{calculate model with fitted \(\chi\) for
+plotting}{calculate model with fitted \textbackslash{}chi for plotting}}\label{calculate-model-with-fitted-chi-for-plotting}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{spec_model <-}\StringTok{ }\KeywordTok{list}\NormalTok{()}
+\ControlFlowTok{for}\NormalTok{(sensor }\ControlFlowTok{in} \DecValTok{1}\OperatorTok{:}\DecValTok{2}\NormalTok{)\{}
+\NormalTok{  spec_model_sens <-}\StringTok{ }\KeywordTok{list}\NormalTok{()}
+  \ControlFlowTok{for}\NormalTok{(segment }\ControlFlowTok{in} \DecValTok{1}\OperatorTok{:}\DecValTok{146}\NormalTok{)\{}
+\NormalTok{    spec_model_seg <-}\StringTok{  }\NormalTok{C_T }\OperatorTok{*}\StringTok{ }\NormalTok{fit[[sensor]][[segment]]}\OperatorTok{@}\NormalTok{coef[}\DecValTok{1}\NormalTok{] }\OperatorTok{*}\StringTok{ }\KeywordTok{mean}\NormalTok{(eps1[segment],eps2[segment])}\OperatorTok{^}\NormalTok{(}\OperatorTok{-}\DecValTok{1}\OperatorTok{/}\DecValTok{3}\NormalTok{) }\OperatorTok{*}\StringTok{ }\NormalTok{x[[segment]]}\OperatorTok{^}\NormalTok{(}\DecValTok{1}\OperatorTok{/}\DecValTok{3}\NormalTok{)}
+\NormalTok{    spec_model_sens <-}\StringTok{ }\KeywordTok{c}\NormalTok{(spec_model_sens, }\KeywordTok{list}\NormalTok{(spec_model_seg))}
+\NormalTok{  \}}\CommentTok{#end for loop through spectra}
+\NormalTok{  spec_model <-}\StringTok{ }\KeywordTok{c}\NormalTok{(spec_model, }\KeywordTok{list}\NormalTok{(spec_model_sens))}
+\NormalTok{\}}\CommentTok{#end for loop through sensors}
+\end{Highlighting}
+\end{Shaded}
+
+\subparagraph{plot data and model for sample
+spectra}\label{plot-data-and-model-for-sample-spectra}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{pl_model <-}\StringTok{ }\KeywordTok{data.frame}\NormalTok{()}
+\ControlFlowTok{for}\NormalTok{(segment }\ControlFlowTok{in}\NormalTok{ specnr_sub)\{}
+\NormalTok{  k_model_s <-}\StringTok{ }\NormalTok{x[[segment]]}
+\NormalTok{  spec_model1_s <-}\StringTok{ }\NormalTok{spec_model[[}\DecValTok{1}\NormalTok{]][[segment]]}
+\NormalTok{  spec_model2_s <-}\StringTok{ }\NormalTok{spec_model[[}\DecValTok{2}\NormalTok{]][[segment]]}
+\NormalTok{  pl_model <-}\StringTok{ }\NormalTok{pl_model }\OperatorTok{%>%}
+\StringTok{      }\KeywordTok{rbind}\NormalTok{(}\KeywordTok{data.frame}\NormalTok{(}\DataTypeTok{k_model =}\NormalTok{ k_model_s, }\DataTypeTok{T1 =}\NormalTok{ spec_model1_s, }\DataTypeTok{T2 =}\NormalTok{ spec_model2_s, }\DataTypeTok{specnr =} \KeywordTok{as.factor}\NormalTok{(segment)) }\OperatorTok{%>%}
+\StringTok{    }\KeywordTok{gather}\NormalTok{(}\DataTypeTok{key =}\NormalTok{ sensor, }\OperatorTok{-}\NormalTok{k_model, }\OperatorTok{-}\NormalTok{specnr, }\DataTypeTok{value =}\NormalTok{ spec_model))}
+\NormalTok{\} }\CommentTok{#end for loop through spectra}
+\NormalTok{pl_data <-}\StringTok{ }\NormalTok{gradT_df }\OperatorTok{%>%}
+\StringTok{  }\KeywordTok{filter}\NormalTok{(specnr }\OperatorTok{%in%}\StringTok{ }\NormalTok{specnr_sub, freq }\OperatorTok{!=}\StringTok{ }\DecValTok{0}\NormalTok{) }\OperatorTok{%>%}
+\StringTok{  }\KeywordTok{mutate}\NormalTok{(}\DataTypeTok{specnr =} \KeywordTok{as.factor}\NormalTok{(specnr))}
+\KeywordTok{ggplot}\NormalTok{() }\OperatorTok{+}\StringTok{ }
+\StringTok{  }\KeywordTok{geom_point}\NormalTok{(}\DataTypeTok{data=}\NormalTok{pl_data, }\KeywordTok{aes}\NormalTok{(}\DataTypeTok{x=}\NormalTok{freq, }\DataTypeTok{y =}\NormalTok{ gradT_c, }\DataTypeTok{col =}\NormalTok{ sensor), }\DataTypeTok{alpha =} \FloatTok{0.3}\NormalTok{) }\OperatorTok{+}\StringTok{ }
+\StringTok{  }\KeywordTok{geom_line}\NormalTok{(}\DataTypeTok{data=}\NormalTok{pl_model, }\KeywordTok{aes}\NormalTok{(}\DataTypeTok{x=}\NormalTok{k_model, }\DataTypeTok{y=}\NormalTok{spec_model, }\DataTypeTok{col =}\NormalTok{ sensor)) }\OperatorTok{+}
+\StringTok{  }\KeywordTok{scale_y_continuous}\NormalTok{(}\DataTypeTok{trans=}\StringTok{'log10'}\NormalTok{, }\DataTypeTok{limits=}\KeywordTok{c}\NormalTok{(}\DecValTok{10}\OperatorTok{^-}\DecValTok{9}\NormalTok{,}\DecValTok{10}\OperatorTok{^-}\DecValTok{2}\NormalTok{)) }\OperatorTok{+}
+\StringTok{  }\KeywordTok{scale_x_continuous}\NormalTok{(}\DataTypeTok{trans=}\StringTok{'log10'}\NormalTok{)  }\OperatorTok{+}\StringTok{ }
+\StringTok{  }\KeywordTok{labs}\NormalTok{(}\DataTypeTok{x =} \StringTok{'freq'}\NormalTok{, }\DataTypeTok{y =} \StringTok{'spectra energy'}\NormalTok{) }\OperatorTok{+}
+\StringTok{  }\KeywordTok{facet_wrap}\NormalTok{(}\OperatorTok{~}\NormalTok{specnr) }\OperatorTok{+}
+\StringTok{  }\KeywordTok{theme_bw}\NormalTok{()}
+\end{Highlighting}
+\end{Shaded}
+
+\includegraphics{temp_spectra_examples_files/figure-latex/unnamed-chunk-11-1.pdf}
+
+\subparagraph{\texorpdfstring{check for lower \(k\) condition using MAD
+(mean absolute deviation) between observed and modelled
+spectra}{check for lower k condition using MAD (mean absolute deviation) between observed and modelled spectra}}\label{check-for-lower-k-condition-using-mad-mean-absolute-deviation-between-observed-and-modelled-spectra}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\CommentTok{# only checking T1 for now}
+\NormalTok{MAD <-}\StringTok{ }\KeywordTok{list}\NormalTok{()}
+\NormalTok{crit <-}\StringTok{ }\KeywordTok{list}\NormalTok{()}
+\NormalTok{spec_good <-}\StringTok{ }\KeywordTok{c}\NormalTok{()}
+  \ControlFlowTok{for}\NormalTok{(segment }\ControlFlowTok{in} \DecValTok{1}\OperatorTok{:}\DecValTok{146}\NormalTok{)\{}
+\NormalTok{    phi <-}\StringTok{ }\NormalTok{y[[}\DecValTok{1}\NormalTok{]][[segment]]   }\CommentTok{# corrected wavenumber temp-gradient = measured spectrum}
+\NormalTok{    psi <-}\StringTok{ }\NormalTok{spec_model[[}\DecValTok{1}\NormalTok{]][[segment]]   }\CommentTok{# modelled spectrum}
+\NormalTok{    steps <-}\StringTok{ }\DecValTok{6}  \CommentTok{# 0.5-0.7 of a decade long?}
+\NormalTok{    nr_steps <-}\StringTok{ }\KeywordTok{floor}\NormalTok{(}\KeywordTok{length}\NormalTok{(phi)}\OperatorTok{/}\NormalTok{steps)}
+\NormalTok{    modulo <-}\StringTok{ }\KeywordTok{length}\NormalTok{(phi) }\OperatorTok{%%}\StringTok{ }\NormalTok{steps}
+    \ControlFlowTok{if}\NormalTok{(modulo }\OperatorTok{>=}\StringTok{ }\DecValTok{4}\NormalTok{)\{}
+\NormalTok{      nr_steps <-}\StringTok{ }\NormalTok{nr_steps }\OperatorTok{+}\StringTok{ }\DecValTok{1} 
+\NormalTok{    \}}
+
+    \CommentTok{# calculate MAD for steps of 6 values for the spectrum}
+\NormalTok{    MAD_seg <-}\StringTok{ }\KeywordTok{c}\NormalTok{()}
+\NormalTok{    crit_seg <-}\StringTok{ }\KeywordTok{c}\NormalTok{()}
+    \ControlFlowTok{for}\NormalTok{(i }\ControlFlowTok{in} \DecValTok{1}\OperatorTok{:}\NormalTok{nr_steps)\{}
+\NormalTok{      n_st <-}\StringTok{ }\NormalTok{(i}\OperatorTok{-}\DecValTok{1}\NormalTok{) }\OperatorTok{*}\StringTok{ }\NormalTok{steps }\OperatorTok{+}\StringTok{ }\DecValTok{1}
+      \ControlFlowTok{if}\NormalTok{(i }\OperatorTok{==}\StringTok{ }\NormalTok{nr_steps)\{}
+        \ControlFlowTok{if}\NormalTok{(modulo }\OperatorTok{>=}\StringTok{ }\DecValTok{4}\NormalTok{)\{}
+\NormalTok{          n_en <-}\StringTok{ }\NormalTok{n_st }\OperatorTok{+}\StringTok{ }\NormalTok{modulo }\OperatorTok{-}\StringTok{ }\DecValTok{1}
+\NormalTok{        \}}\ControlFlowTok{else}\NormalTok{\{}
+\NormalTok{          n_en <-}\StringTok{ }\NormalTok{n_st }\OperatorTok{+}\StringTok{ }\NormalTok{steps }\OperatorTok{-}\StringTok{ }\DecValTok{1} \OperatorTok{+}\StringTok{ }\NormalTok{modulo}
+\NormalTok{        \}}
+\NormalTok{      \}}\ControlFlowTok{else}\NormalTok{\{}
+\NormalTok{        n_en <-}\StringTok{ }\NormalTok{n_st }\OperatorTok{+}\StringTok{ }\NormalTok{steps }\OperatorTok{-}\StringTok{ }\DecValTok{1}
+\NormalTok{      \}}
+\NormalTok{      phi_n =}\StringTok{ }\NormalTok{phi[n_st}\OperatorTok{:}\NormalTok{n_en]}
+\NormalTok{      psi_n =}\StringTok{ }\NormalTok{psi[n_st}\OperatorTok{:}\NormalTok{n_en]}
+\NormalTok{      MAD_seg[i] <-}\StringTok{  }\DecValTok{1}\OperatorTok{/}\NormalTok{(}\KeywordTok{length}\NormalTok{(phi_n)) }\OperatorTok{*}\StringTok{ }\KeywordTok{sum}\NormalTok{(}\KeywordTok{abs}\NormalTok{(phi_n}\OperatorTok{/}\NormalTok{psi_n }\OperatorTok{-}\StringTok{ }\KeywordTok{mean}\NormalTok{(phi_n}\OperatorTok{/}\NormalTok{psi_n)))}
+    
+      \CommentTok{# check whether MAD fits criteria, crit = 0 (bad), 1 (good)}
+\NormalTok{      dof <-}\StringTok{ }\KeywordTok{length}\NormalTok{(phi_n) }\OperatorTok{-}\StringTok{ }\DecValTok{1}   \CommentTok{# degrees of freedom}
+\NormalTok{      crit_seg[i] <-}\StringTok{ }\KeywordTok{ifelse}\NormalTok{(MAD_seg[i] }\OperatorTok{<}\StringTok{ }\DecValTok{2} \OperatorTok{*}\StringTok{ }\NormalTok{(}\DecValTok{2}\OperatorTok{/}\NormalTok{dof)}\OperatorTok{^}\FloatTok{0.5}\NormalTok{, }\DecValTok{1}\NormalTok{, }\DecValTok{0}\NormalTok{)}
+    
+\NormalTok{    \} }\CommentTok{# end for loop}
+\NormalTok{    MAD <-}\StringTok{ }\KeywordTok{c}\NormalTok{(MAD, }\KeywordTok{list}\NormalTok{(MAD_seg))}
+\NormalTok{    crit <-}\StringTok{ }\KeywordTok{c}\NormalTok{(crit, }\KeywordTok{list}\NormalTok{(crit_seg))}
+\NormalTok{    spec_good <-}\StringTok{ }\KeywordTok{c}\NormalTok{(spec_good, }\KeywordTok{ifelse}\NormalTok{(}\KeywordTok{sum}\NormalTok{(crit_seg)}\OperatorTok{==}\KeywordTok{length}\NormalTok{(crit_seg),}\DecValTok{1}\NormalTok{,}\DecValTok{0}\NormalTok{))}
+\NormalTok{  \}}
+  \CommentTok{#If all subsets of the spectrum yielded a MAD>2(2/d)^1/2 (d = degrees of freedom   --> n-1 ?) (Ruddick et al. 2000), then the spectrum is completely discarded. Otherwise, the final wavenumber range used to obtain xF starts at the lowest wavenumber at which MAD<2(2/d)^1/2}
+\end{Highlighting}
+\end{Shaded}
+
+There are 70 good spectra out of 146 spectra in the profile.
+
+\subparagraph{For our sample spectra:}\label{for-our-sample-spectra}
+
+\begin{verbatim}
+## [1] "spectrum 16: all MADs fulfill criteria, good spectrum"
+## [1] "spectrum 30: at least one MAD value outside allowed range, change minimum k"
+## [1] "spectrum 50: at least one MAD value outside allowed range, change minimum k"
+## [1] "spectrum 70: all MADs fulfill criteria, good spectrum"
+## [1] "spectrum 100: all MADs fulfill criteria, good spectrum"
+## [1] "spectrum 130: all MADs fulfill criteria, good spectrum"
+\end{verbatim}
+
+
+\end{document}
